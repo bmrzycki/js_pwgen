@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Wordlist Password Generator</title>
+<meta charset="UTF-8">
+
+<!-- =[ Javascript block start ]========================================== -->
+<script src="version.js"></script>
+<script src="dict.js"></script>
+<script>
+  const month = [ "January", "February", "March", "April", "May", "June",
+		  "July", "August", "September", "October", "November",
+		  "December" ];
+
+  function upcaseFirst(s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function upcaseAll(s) {
+      return s.toUpperCase();
+  }
+
+  function upcaseRand(s) {
+      let ss = "";
+      for (let i in s) {
+	  let c = s[i];
+	  if (Math.random() < 0.5) {
+	      c = c.toUpperCase();
+	  }
+	  ss += c;
+      }
+      return ss;
+  }
+
+  function upcaseSpongebob(s) {
+      let ss = "";
+      let prev = (Math.random() < 0.5);
+      for (let i in s) {
+	  let c = s[i];
+	  if (prev) {
+	      prev = false;
+	      ss += c;
+	  } else {
+	      prev = true;
+	      ss += c.toUpperCase();
+	  }
+      }
+      return ss;
+  }
+
+  function mutate(s) {
+      let fn = function (s) { return s; };
+      let mode = document.pwForm.mode.value;
+
+      if (mode.startsWith("upcaseFirst")) {
+	  fn = upcaseFirst;
+      } else if (mode.startsWith("upcaseAll")) {
+	  fn = upcaseAll;
+      } else if (mode.startsWith("upcaseRand")) {
+	  fn = upcaseRand;
+      } else if (mode.startsWith("upcaseSpongebob")) {
+	  fn = upcaseSpongebob;
+      }
+
+      if (mode.endsWith("Alt")) {
+	  if (mutate.prev === false) {
+	      mutate.prev = true;
+	      return fn(s);
+	  }
+	  mutate.prev = false;
+	  return s;
+      } else if (mode.endsWith("Rand")) {
+	  if (Math.random() < 0.5) {
+              return fn(s);
+          }
+	  return s;
+      }
+      return fn(s);
+  }
+
+  function genpw() {
+      document.pwForm.wordCount.value =
+	  parseInt(document.pwForm.wordCount.value);
+      mutate.prev = (Math.random() < 0.5);
+      if (document.pwForm.wordCount.value > 9) {
+	  document.pwForm.wordCount.value = 9;
+      } else if (document.pwForm.wordCount.value < 3) {
+	  document.pwForm.wordCount.value = 3;
+      }
+
+      let data = Array.from(words);
+      if (document.pwForm.useNames.checked) {
+	  data = data.concat(Array.from(names));
+      }
+      let dataLen = data.length;
+
+      let d = {};
+      while(Object.keys(d).length < document.pwForm.wordCount.value) {
+	  d[data[Math.floor(Math.random() * dataLen)]] = true;
+      }
+
+      let s = "";
+      for (let i in d) {
+	  let sep = document.pwForm.seperator.value;
+	  if (sep.length === 0) {
+	      sep = " ";
+	  } else if (sep.length > 1) {
+	      sep = sep.charAt(Math.floor(Math.random() * sep.length));
+	  }
+	  s += `${mutate(i)}${sep}`;
+      }
+
+      let prefix = document.pwForm.prefix.value;
+      if (prefix.length > 1) {
+	  prefix = prefix.charAt(Math.floor(Math.random() * prefix.length));
+      }
+
+      let suffix = document.pwForm.suffix.value;
+      if (suffix.length > 1) {
+	  suffix = suffix.charAt(Math.floor(Math.random() * suffix.length));
+      }
+
+      document.pwForm.pwValue.value = prefix + s.slice(0, -1) + suffix;
+      let dt = new Date();
+      document.pwForm.pwInfo.value =
+	  `${month[dt.getMonth()]} ${dt.getDate()} ${dt.getFullYear()}` +
+	  ` ${dt.toLocaleTimeString()}` +
+	  ` [len=${document.pwForm.pwValue.value.length}]` +
+	  ` (${version})`;
+  }
+
+window.onload = genpw;
+</script>
+<!-- =[ Javascript block end ]============================================ -->
+
+<style>
+  input[type=text], textarea {
+      font-family: monospace;
+      font-size: 130%;
+      color: #AAAAAA;
+      background-color: #202020;
+      border-color: #303030;
+  }
+  .btn {
+      margin: 2px;
+      border: none;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      border-radius: 4px;
+      color: #000000;
+      background-color: #CCCCCC;
+  }
+  body {
+      color: #AAAAAA;
+      background-color: #101010;
+  }
+</style>
+</head>
+<body>
+  <form name="pwForm">
+    <input type="text" name="prefix" size="20" value=":;()$&@.,?/">
+    Prefix<br>
+    <input type="text" name="seperator" size="20" value="0123456789-_">
+    Seperator<br>
+    <input type="text" name="suffix" size="20" value=":;()$&@.,?/">
+    Suffix<br>
+    <input type="text" name="wordCount" size="2" value="4">
+    Words (3-9)<br>
+    <br>
+    <div>
+      <input type="checkbox" id="useNames" name="useNames" checked>
+      <label for="useNames">Add proper names</label>
+    </div>
+    <br>
+    <select name="mode">
+      <option value="upcaseFirst">Upcase first</option>
+      <option value="upcaseFirstAlt">Upcase first alternate</option>
+      <option value="upcaseFirstRand">Upcase first random</option>
+      <option value="upcaseAll">Upcase all</option>
+      <option value="upcaseAllAlt">Upcase all alternate</option>
+      <option value="upcaseAllRand">Upcase all random</option>
+      <option value="upcaseRand">Upcase random</option>
+      <option value="upcaseRandAlt">Upcase random alternate</option>
+      <option value="upcaseRandRand">Upcase random random</option>
+      <option value="upcaseSpongebob">Upcase Spongebob</option>
+      <option value="upcaseSpongebobAlt">Upcase Spongebob alternate</option>
+      <option value="upcaseSpongebobRand">Upcase Spongebob random</option>
+      <option value="locase">Lower case</option>
+    </select>
+    <br>
+    <br>
+    <input class="btn" type="button" value="Generate" onClick="genpw()"><br><br>
+    <textarea name="pwValue" readonly rows="1" cols="82"></textarea><br>
+    <textarea name="pwInfo" readonly rows="1" cols="82"></textarea>
+  </form>
+</body>
+</html>

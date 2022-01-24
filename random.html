@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Password Generator</title>
+<meta charset="UTF-8">
+
+<!-- =[ Javascript block start ]========================================== -->
+<script src="version.js"></script>
+<script>
+const month = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December" ];
+
+function common_chars() {
+    let s = document.pw_form.char_field.value;
+    if (s.indexOf("A") < 0) {
+        s += "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n";
+        s += "abcdefghijklmnopqrstuvwxyz\n";
+        s += "0123456789\n";
+        document.pw_form.char_field.value = s;
+    }
+}
+
+function ios_symbol_chars() {
+    let s = document.pw_form.char_field.value;
+    if (s.indexOf("!") < 0) {
+	s += "!@$&()-:,./?\n";
+        document.pw_form.char_field.value = s;
+    }
+}
+
+function symbol_chars() {
+    let s = document.pw_form.char_field.value;
+    if (s.indexOf("!") < 0) {
+        s += "!@#$%^&*-_=+\n";
+        document.pw_form.char_field.value = s;
+    }
+}
+
+function clear_chars() {
+    document.pw_form.char_field.value = "";
+}
+
+function clear_vague_chars() {
+    let s = document.pw_form.char_field.value;
+    // Remove chars that are commonly confused for others.
+    // O -> 0, S -> 5, l -> 1, whitespace (but not \n as it
+    // is used as a group delimiter later).
+    let vague = "OSl\t ";
+    let vlen = vague.length;
+    for (let i=0; i < vlen; i++) {
+        let regex = new RegExp(vague.charAt(i), "g");
+        s = s.replace(regex, "");
+    }
+    document.pw_form.char_field.value = s;
+}
+
+function num_init(str, val, min_val, max_val) {
+    let n = str;
+    if (isNaN(n)) {
+        n = val;
+    }
+    return Math.max(min_val, Math.min(n, max_val));
+}
+
+function get_raw_groups() {
+    let raw = document.pw_form.char_field.value;
+    let tmp = raw.replace(/\s/g, ""); // Don't count whitespace.
+    let tlen = tmp.length;
+
+    // Simple check: do we have fewer than 8 chars?
+    let do_reset = false;
+    if (tlen < 8) {
+        do_reset = true;
+    }
+
+    // Less simple check: do we have fewer than 8 unique chars?
+    if (do_reset == false) {
+        let unique = "";
+        for (let i=0; i < tlen; i++) {
+            let c = tmp.charAt(i);
+            if (unique.indexOf(c) < 0) {
+                unique += c;
+            }
+        }
+        if (unique.length < 8) {
+            do_reset = true;
+        }
+    }
+
+    if (do_reset == true) {
+        clear_chars();
+        common_chars();
+        raw = document.pw_form.char_field.value;
+    }
+    return raw;
+}
+
+function shuffle(str) {
+    let a = str.split("");
+    let a_len = a.length;
+
+    for(let i=a_len-1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        let tmp = a[i];
+        a[i] = a[j];
+        a[j] = tmp;
+    }
+    return a.join("");
+}
+
+function genpw() {
+    let gen = {
+        all       : "",
+        alen      : 0,
+        groups    : new Array(),
+        glen      : 0,
+        max_dups  : 0,
+        max_len   : function() {
+            if (this.max_dups == 0) {
+                return 80;
+            }
+            return this.alen * this.max_dups;
+        },
+        add_group : function(str) {
+            let g = "";
+            str = str.replace(/\s/g, "");
+            for (let i=0; i < str.length; i++) {
+                let c = str.charAt(i);
+                if (this.all.indexOf(c) < 0) {
+                    this.all += c;
+                    g += c;
+                }
+            }
+            if (g.length > 0) {
+                this.groups.push(g);
+                // Make length lookups constant-time.
+                this.alen = this.all.length;
+                this.glen = this.groups.length;
+            }
+        },
+        valid : function(str, do_group_check) {
+            // Store indicies of all the sub-groups in the check array. We'll
+            // remove them if we find a char in str that's a member. If check
+            // is empty at the end of the routine we know all sub-groups are
+            // represented.
+            let slen = str.length;
+            let check = new Array();
+            if (do_group_check == true && this.glen < slen) {
+                for (let i=0; i < this.glen; i++) {
+                    check.push(i);
+                }
+            }
+
+            let last = null;
+            for (let i=0; i < slen; i++) {
+                let c = str.charAt(i);
+                if (last == c) {
+                    return false; // Consecutive chars, it's no good.
+                }
+                last = c;
+
+                let clen = check.length;
+                if (clen > 0) {
+                    for (let c_idx=0; c_idx < clen; c_idx++) {
+                        let g_idx = check[c_idx];
+                        if (this.groups[g_idx].indexOf(c) >= 0) {
+                            check.splice(c_idx, 1);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (check.length > 0) {
+                return false; // At least one group was not represented.
+            }
+            return true;
+        },
+        get : function(len) {
+            if (len === undefined || len < 8 || this.alen < 8) {
+                return ""; // Garbage in, garbage out. :)
+            }
+	    let count = 0;
+            while (true) {
+                let s = "";
+                let do_group_check = true;
+		count += 1;
+                if (this.max_dups == 0) {
+                    // Dups don't matter: be as random as possible here.
+                    for (let i=0; i < len; i++) {
+                        s += this.all.charAt(
+                            Math.floor(Math.random() * this.alen));
+                    }
+                } else {
+                    // Dups matter: First generate a max length string with
+                    // max_dups copies of this.all. This gives us exactly
+                    // max_dups of each char (this.all contains no dups).
+                    for (let i=0; i < this.max_dups; i++) {
+                        s += this.all;
+                    }
+                    s = shuffle(s);
+                    if (s.length == len) {
+                        if (this.max_dups == 1) {
+                            // Corner case: no dups exist and we used the
+                            // whole this.all string. It doesn't need to
+                            // be validated.
+                            return s;
+                        } else {
+                            // The entire string is used and all sub-groups are
+                            // represented. We don't need to slice it but we
+                            // still need to check for sequential chars.
+                            do_group_check = false;
+                        }
+                    } else {
+                        // Select the first len chars of s for evaluation.
+                        s = s.slice(0, len);
+                    }
+                }
+                if (this.valid(s, do_group_check)) {
+                    return s;
+                }
+            }
+        }
+    };
+
+    // Generate groups from char_field, newline delimited.
+    let raw = get_raw_groups().split("\n");
+    for (let i=0; i < raw.length; i++) {
+        gen.add_group(raw[i]);
+    }
+
+    // Sanitize len and max_dups.
+    gen.max_dups = num_init(document.pw_form.pw_max_dups.value, 4, 0, 10);
+    let len = num_init(document.pw_form.pw_len.value, 8, 8, gen.max_len());
+    document.pw_form.pw_max_dups.value = gen.max_dups;
+    document.pw_form.pw_len.value = len;
+
+    // Update text fields with generated password and datestamp.
+    let d = new Date();
+    document.pw_form.pw_only.value = gen.get(len);
+    document.pw_form.pw_field.value = `${month[d.getMonth()]} ${d.getDate()}` +
+	` ${d.getFullYear()} ${d.toLocaleTimeString()} [len=${len}]` +
+	` (${version})`;
+}
+
+function startup(kind) {
+    clear_chars();
+    common_chars();
+    let len = 0;
+    let max_dups = 0;
+    if (kind == 4) {  // Insane.
+        symbol_chars();
+        len = 74;
+        max_dups = 1;
+    } else if (kind == 3) {  // Strong.
+        symbol_chars();
+        len = 30;
+        max_dups = 1;
+    } else if (kind == 2) {  // Medium + Sym.
+        symbol_chars();
+        clear_vague_chars();
+        len = 20;
+        max_dups = 2;
+    } else if (kind == 1) {  // Medium.
+        clear_vague_chars();
+        len = 20;
+        max_dups = 2;
+    } else {  // Basic.
+        clear_vague_chars();
+        len = 20;
+        max_dups = 4;
+    }
+    document.pw_form.pw_len.value = len;
+    document.pw_form.pw_max_dups.value = max_dups;
+    genpw();
+}
+
+window.onload = startup;
+</script>
+<!-- =[ Javascript block end ]============================================ -->
+
+<style>
+  input[type=text], textarea {
+      font-family: monospace;
+      font-size: 130%;
+      color: #AAAAAA;
+      background-color: #202020;
+      border-color: #303030;
+  }
+  .btn {
+      margin: 2px;
+      border: none;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      border-radius: 4px;
+      color: #000000;
+      background-color: #CCCCCC;
+  }
+  body {
+      color: #AAAAAA;
+      background-color: #101010;
+  }
+</style>
+</head>
+<body>
+  <form name="pw_form">
+    <textarea name="char_field" rows="5" cols="36"></textarea><br>
+    <input class="btn" type="button" value="Common" onClick="common_chars()">
+    <input class="btn" type="button" value="Symbols" onClick="symbol_chars()">
+    <input class="btn" type="button" value="iOS Symbols" onClick="ios_symbol_chars()">
+    <input class="btn" type="button" value="Reset" onClick="clear_chars()">
+    <input class="btn" type="button" value="No Vague" onClick="clear_vague_chars()">
+    <br>
+    <input class="btn" type="button" value="Basic" onClick="startup(0)">
+    <input class="btn" type="button" value="Medium" onClick="startup(1)">
+    <input class="btn" type="button" value="Med + Sym" onClick="startup(2)">
+    <input class="btn" type="button" value="Strong" onClick="startup(3)">
+    <input class="btn" type="button" value="Insane" onClick="startup(4)">
+    <br><br>
+
+    <input type="text" name="pw_len" size="3">
+    len (8-80)<br>
+    <input type="text" name="pw_max_dups" size="3">
+    max dupes (0-10)<br><br>
+    <input class="btn" type="button" value="Generate" onClick="genpw()"><br><br>
+    <textarea name="pw_only" readonly rows="1" cols="82"></textarea><br>
+    <textarea name="pw_field" readonly rows="1" cols="82"></textarea>
+  </form>
+</body>
+</html>
